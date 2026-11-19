@@ -1,0 +1,102 @@
+@startuml 04_state_diagram
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName "Inter"
+skinparam defaultFontSize 12
+skinparam roundcorner 14
+
+skinparam titleFontSize 18
+skinparam titleFontColor #1E3A5F
+skinparam footerFontSize 10
+skinparam footerFontColor #64748B
+
+skinparam state {
+  BackgroundColor #EAF2FA
+  BorderColor #1E3A5F
+  FontColor #0F172A
+  FontStyle bold
+  AttributeFontColor #334155
+  AttributeFontSize 11
+  StartColor #1E3A5F
+  EndColor #1E3A5F
+  ArrowColor #334155
+  ArrowFontColor #1E293B
+  ArrowFontSize 11
+}
+
+skinparam note {
+  BackgroundColor #FFFBEB
+  BorderColor #D97706
+  FontColor #451A03
+  FontSize 11
+}
+
+title Diagram Stanu (State Diagram) — Cykl życia obiektu Grupa (Sesja grupowa, MVP v1.0)
+
+[*] --> AktywnaGrupa : utworzGrupe(nazwa, typ)\n[FR-07]
+
+state "Aktywna Grupa" as AktywnaGrupa #F8FAFC {
+
+  [*] --> Utworzona
+
+  state "UTWORZONA" as Utworzona {
+    Utworzona : entry / przypisz rolę ADMINISTRATOR twórcy
+    Utworzona : entry / wygeneruj kodZaproszenia i ustaw ostatniaAktywnoscO [US-4 AC1]
+  }
+
+  state "OCZEKUJACA\n(Oczekująca na uczestników)" as Oczekujaca {
+    Oczekujaca : dolaczDoGrupy() [zalogowany] / dodaj CzlonkostwoGrupy [FR-06]
+    Oczekujaca : usunCzlonka() [Administrator] / dezaktywuj członkostwo,\n  pomiń jego oceny i wektor preferencji [FR-13, US-4 AC3–AC4]
+    Oczekujaca : zmienNazwe() [Administrator] / zaktualizuj nazwę grupy [FR-13]
+  }
+
+  state "W_TRAKCIE_DOBIERANIA" as Dobieranie #FFF4E0 {
+    Dobieranie : do / pobierz wektory i oceny aktywnych członków [US-5 AC1]
+    Dobieranie : do / dopasuj film (wektor ML lub fallback: średnia ocen) [US-5 AC3]
+  }
+
+  state "PROPOZYCJA_WYGENEROWANA" as Propozycja #EAF2FA {
+    Propozycja : entry / zapisz PropozycjaFilmu (tryb: GRUPOWY)
+    Propozycja : entry / zsynchronizuj ten sam tytuł u wszystkich uczestników [US-5 AC2]
+  }
+
+  state "FILM_WYBRANY" as Wybrany #E6F4EA {
+    Wybrany : entry / ustaw status PropozycjaFilmu = ZAAKCEPTOWANY
+    Wybrany : entry / wyświetl potwierdzony film i odśwież ostatniaAktywnoscO [FR-10]
+  }
+
+  Utworzona --> Oczekujaca : udostepnijLinkZaproszenia()\n(np. Messenger / SMS)\n[FR-06, US-4 AC1]
+
+  Oczekujaca --> Dobieranie : uruchomDobieranieGrupowe()\n[aktywni uczestnicy ≥ 2*]\n[FR-10]
+
+  Dobieranie --> Propozycja : wyznaczonoPropozycje()\n[ML lub średnia ocen]\n[US-5 AC1–AC3]
+
+  Propozycja --> Dobieranie : odrzucPropozycje()\n/ losuj kolejny film [FR-10]
+
+  Propozycja --> Wybrany : akceptujPropozycje()\n[FR-10]
+
+  Wybrany --> Oczekujaca : noweDobieranie()\n/ kolejny film (maraton)\n[STALA lub TYMCZASOWA] [FR-07]
+}
+
+state "ZAKONCZONA\n(Wygasła)" as Zakonczona #E2E8F0 {
+  Zakonczona : entry / zamknij i zarchiwizuj sesję tymczasową\n  po przekroczeniu czasu nieaktywności [FR-07]
+}
+
+state "USUNIETA\n(Anulowana)" as Usunieta #FDECEC {
+  Usunieta : entry / usuń grupę i powiązane\n  członkostwa (kompozycja) [FR-13]
+}
+
+AktywnaGrupa --> Zakonczona : after(czasNieaktywnosci*)\n[typ == TYMCZASOWA]\n[FR-07]
+
+AktywnaGrupa --> Usunieta : usunGrupe()\n[wywołane przez Administratora]\n[FR-13]
+
+Zakonczona --> [*]
+Usunieta --> [*]
+
+note bottom of Usunieta
+  <b>Uwaga (*):</b> Warunek [aktywni uczestnicy ≥ 2] oraz dokładna długość
+  krótkiego czasu nieaktywności (timeout) dla grupy tymczasowej
+  stanowią kwestie do doprecyzowania w dokumentacji z PO (pkt 6 raportu).
+end note
+
+@enduml

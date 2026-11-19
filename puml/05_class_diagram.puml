@@ -1,0 +1,147 @@
+@startuml 05_class_diagram
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName "Inter"
+skinparam defaultFontSize 12
+skinparam roundcorner 10
+skinparam classAttributeIconSize 0
+skinparam nodesep 55
+skinparam ranksep 55
+
+skinparam titleFontSize 18
+skinparam titleFontColor #1E3A5F
+skinparam footerFontSize 10
+skinparam footerFontColor #64748B
+
+skinparam class {
+  BackgroundColor #FFFFFF
+  HeaderBackgroundColor #EAF2FA
+  BorderColor #1E3A5F
+  FontColor #0F172A
+  FontStyle bold
+  AttributeFontColor #1E293B
+  AttributeFontSize 11
+  StereotypeFontColor #1E3A5F
+}
+
+skinparam note {
+  BackgroundColor #FFFBEB
+  BorderColor #D97706
+  FontColor #451A03
+  FontSize 11
+}
+
+skinparam arrow {
+  Color #334155
+  FontColor #1E293B
+  FontSize 11
+}
+
+title Diagram Klas (Class Diagram) — Podstawowa struktura systemu MovieMatch (MVP v1.0)
+
+class Uzytkownik {
+  - id : UUID
+  - email : String {unique}
+  - hasloHash : String
+  - nazwaUzytkownika : String
+  - ankietaWypelniona : Boolean
+  - ulubioneGatunki : List<String>
+  - wektorPreferencji : Float[]
+  - usunietyO : DateTime [0..1]
+  --
+  + wypelnijAnkiete(gatunki : List<String>) : void
+  + wystawOcene(film : Film, wartosc : Decimal) : Ocena
+  + zaktualizujWektorPreferencji() : void
+  + dobierzFilmIndywidualnie() : PropozycjaFilmu
+}
+
+class Ocena {
+  - id : UUID
+  - wartosc : Decimal {1.0..10.0}
+  - dataDodania : DateTime
+  - dataModyfikacji : DateTime
+  --
+  + edytujOcene(nowaWartosc : Decimal) : void
+  + usunOcene() : void
+}
+
+class Film {
+  - id : UUID
+  - tytul : String
+  - gatunki : List<String>
+  - rokProdukcji : Integer
+  - wektorCech : Float[]
+  --
+  + obliczSredniaOcen(uczestnicy : List<Uzytkownik>) : Decimal
+}
+
+class CzlonkostwoGrupy {
+  - id : UUID
+  - rola : {ADMINISTRATOR, UCZESTNIK}
+  - dolaczonoO : DateTime
+  - aktywne : Boolean
+  --
+  + dezaktywuj() : void
+}
+
+class Grupa {
+  - id : UUID
+  - nazwa : String
+  - typ : {TYMCZASOWA, STALA}
+  - kodZaproszenia : String {unique}
+  - status : {UTWORZONA, OCZEKUJACA,\n    W_TRAKCIE_DOBIERANIA,\n    PROPOZYCJA_WYGENEROWANA,\n    FILM_WYBRANY, ZAKONCZONA, USUNIETA}
+  - utworzonaO : DateTime
+  - ostatniaAktywnoscO : DateTime
+  --
+  + dodajCzlonka(uzytkownik : Uzytkownik) : CzlonkostwoGrupy
+  + usunCzlonka(uzytkownik : Uzytkownik) : void
+  + zmienNazwe(nowaNazwa : String) : void
+  + dobierzFilmGrupowo() : PropozycjaFilmu
+  + usunGrupe() : void
+}
+
+class PropozycjaFilmu {
+  - id : UUID
+  - tryb : {INDYWIDUALNY, GRUPOWY}
+  - wynikDopasowania : Float
+  - metodaDopasowania : {WEKTOR_ML, SREDNIA_OCEN}
+  - status : {ZAPROPONOWANY, ZAAKCEPTOWANY, ODRZUCONY}
+  - wygenerowanoO : DateTime
+  --
+  + zaakceptuj() : void
+  + odrzuc() : void
+}
+
+' ==================== RELACJE I LICZNOŚCI ====================
+
+' Członkostwo w grupach — górny wiersz bez przecięć (FR-06, FR-07, FR-13)
+Grupa "1" *-r- "1..*" CzlonkostwoGrupy : składa się z >
+CzlonkostwoGrupy "0..*" -r- "1" Uzytkownik : < uczestniczy
+
+' Rekomendacje filmów — indywidualne i grupowe (FR-10, FR-11)
+Grupa "0..1" o-d- "0..*" PropozycjaFilmu : generuje grupowo
+Uzytkownik "0..1" -d- "0..*" PropozycjaFilmu : otrzymuje indywidualnie
+
+' Oceny użytkownika dla filmów (FR-04, FR-08)
+Uzytkownik "1" -d- "0..*" Ocena : wystawia >
+
+' Powiązania z filmem (dolny wiersz)
+PropozycjaFilmu "0..*" -d-> "1" Film : rekomenduje
+Ocena "0..*" -d- "1" Film : dotyczy >
+
+' ==================== OGRANICZENIA DZIEDZINOWE (CONSTRAINTS) ====================
+note left of PropozycjaFilmu
+  <b>Ograniczenie {xor}:</b>
+  PropozycjaFilmu należy dokładnie do jednego kontekstu:
+  • tryb = INDYWIDUALNY → powiązana z Uzytkownik [1] (FR-11)
+  • tryb = GRUPOWY → powiązana z Grupa [1] (FR-10)
+end note
+
+note right of Ocena
+  <b>Ograniczenie unikalności:</b>
+  Para (Uzytkownik, Film) jest unikalna —
+  użytkownik ma maks. 1 ocenę na film
+  (może ją edytować lub usunąć — FR-04, FR-08).
+end note
+
+@enduml

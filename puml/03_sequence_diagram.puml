@@ -1,0 +1,201 @@
+@startuml 03_sequence_diagram
+skinparam dpi 165
+skinparam shadowing false
+skinparam defaultFontName "Inter"
+skinparam defaultFontSize 11
+skinparam roundcorner 10
+skinparam maxMessageSize 225
+
+skinparam titleFontSize 17
+skinparam titleFontColor #1E3A5F
+skinparam footerFontSize 10
+skinparam footerFontColor #64748B
+
+skinparam sequence {
+  ArrowColor #334155
+  ArrowFontColor #0F172A
+  ArrowFontSize 11
+  LifeLineBorderColor #64748B
+  LifeLineBackgroundColor #F8FAFC
+  ParticipantBorderColor #1E3A5F
+  ParticipantBackgroundColor #EAF2FA
+  ParticipantFontColor #0F172A
+  ParticipantFontStyle bold
+  ParticipantPadding 12
+  ActorBorderColor #1E3A5F
+  ActorBackgroundColor #EAF2FA
+  ActorFontColor #0F172A
+  ActorFontStyle bold
+  DatabaseBorderColor #1E3A5F
+  DatabaseBackgroundColor #E6F4EA
+  GroupBorderColor #1E3A5F
+  GroupBackgroundColor #E2E8F0
+  GroupBodyBackgroundColor #FFFFFF
+  GroupFontColor #1E3A5F
+  GroupHeaderFontColor #1E3A5F
+  DividerBackgroundColor #1E3A5F
+  DividerFontColor #FFFFFF
+  DividerBorderColor #1E3A5F
+}
+
+skinparam note {
+  BackgroundColor #FFFBEB
+  BorderColor #D97706
+  FontColor #451A03
+  FontSize 10
+}
+
+title Diagram Przebiegu (Sequence Diagram) — Sesja grupowa i grupowe dobieranie filmu (MVP v1.0)
+
+autonumber "<b>[00]</b> "
+
+actor "Administrator\ngrupy" as Admin
+actor "Uczestnik\n(Użytkownik)" as User
+boundary "Aplikacja Mobilna\n(Klient HTTPS)" as UI
+control "Serwis Grup\n(Grupa)" as GroupSvc
+control "Silnik ML\n(PropozycjaFilmu)" as MLSvc
+database "Baza Danych\n(Uzytkownik, Film,\nOcena, Grupa)" as DB
+
+== Faza 1: Utworzenie grupy i udostępnienie linku zaproszenia [FR-07, US-4 AC1] ==
+
+Admin -> UI : utworzGrupe(nazwa, typ:\nTYMCZASOWA | STALA)
+activate UI
+UI -> GroupSvc : utworzGrupe(adminId, nazwa, typ) [HTTPS]
+activate GroupSvc
+GroupSvc -> DB : zapiszGrupe(status=UTWORZONA, ostatniaAktywnoscO)\ni CzlonkostwoGrupy(ADMINISTRATOR)
+activate DB
+DB --> GroupSvc : grupaId, kodZaproszenia
+deactivate DB
+GroupSvc --> UI : linkZaproszenia, status=OCZEKUJACA
+deactivate GroupSvc
+UI --> Admin : wyświetl pokój grupy i link zaproszenia\n(Kopiuj / Udostępnij)
+deactivate UI
+
+Admin ->> User : prześlij link zaproszenia poza aplikacją\n(np. Messenger / SMS) [US-4 AC1]
+
+== Faza 2: Dołączenie uczestnika do grupy linkiem [FR-06, FR-03] ==
+
+User -> UI : otworzLinkZaproszenia(kodZaproszenia) [deep-link]
+activate UI
+UI -> GroupSvc : dolaczDoGrupy(kodZaproszenia, tokenSesji) [HTTPS]
+activate GroupSvc
+
+alt Użytkownik zalogowany [FR-03]
+  GroupSvc -> DB : zapiszCzlonkostwo(grupaId, userId,\nUCZESTNIK, aktywne=true), odswiezAktywnosc()
+  activate DB
+  DB --> GroupSvc : zaktualizowana lista aktywnych członków
+  deactivate DB
+  GroupSvc --> UI : dołączono + lista uczestników
+  UI --> User : wyświetl pokój grupy [FR-06]
+  UI --> Admin : odśwież listę uczestników w pokoju
+else Gość — niezalogowany [alt: FR-02, FR-03]
+  GroupSvc --> UI : 401 Wymagane uwierzytelnienie
+  UI --> User : przekieruj do ekranu logowania / rejestracji
+end
+deactivate GroupSvc
+deactivate UI
+
+== Faza 3: Opcjonalne zarządzanie składem grupy [FR-13, US-4 AC3–AC4] ==
+
+opt Administrator usuwa uczestnika z grupy [FR-13, US-4 AC3]
+  Admin -> UI : usunCzlonka(grupaId, usuwanyUserId)
+  activate UI
+  UI -> GroupSvc : usunCzlonka(grupaId, adminId, usuwanyUserId) [HTTPS]
+  activate GroupSvc
+  GroupSvc -> DB : dezaktywujCzlonkostwo(aktywne=false)
+  activate DB
+  DB --> GroupSvc : skład zaktualizowany (oceny pomijane — US-4 AC4)
+  deactivate DB
+  GroupSvc --> UI : potwierdzenie usunięcia uczestnika
+  deactivate GroupSvc
+  UI --> Admin : zaktualizuj widok uczestników
+  deactivate UI
+end
+
+== Faza 4: Grupowe dobieranie filmu i synchronizacja widoku [FR-10, US-5 AC1–AC3] ==
+
+loop Dopóki propozycja nie zostanie zaakceptowana (można powtarzać dla kolejnych filmów — maraton)
+  User -> UI : uruchomDobieranieGrupowe(grupaId)
+  activate UI
+  UI -> GroupSvc : dobierzFilmGrupowo(grupaId) [HTTPS]
+  activate GroupSvc
+  GroupSvc -> DB : zmienStatusGrupy(W_TRAKCIE_DOBIERANIA)\ni odswiezAktywnosc()
+  activate DB
+  DB --> GroupSvc : OK
+  deactivate DB
+
+  GroupSvc -> MLSvc : wyznaczRekomendacjeGrupowa(grupaId,\nodrzuconeIds)
+  activate MLSvc
+  MLSvc -> DB : pobierzWektoryIOcenyAktywnychCzlonkow(grupaId)
+  activate DB
+  note over DB
+    Wyłącznie członkowie z
+    aktywne=true (US-4 AC4)
+  end note
+  DB --> MLSvc : wektory preferencji, oceny, wektory filmów
+  deactivate DB
+
+  alt Idealne dopasowanie ML [US-5 AC1]
+    MLSvc -> MLSvc : obliczWspolnyWektor()\ni dopasujFilm()
+    MLSvc -> DB : zapiszPropozycje(GRUPOWY, WEKTOR_ML)
+    activate DB
+    DB --> MLSvc : propozycjaId, film
+    deactivate DB
+    MLSvc --> GroupSvc : propozycjaFilmu (dopasowanie ML)
+  else Brak dopasowania — fallback [US-5 AC3]
+    MLSvc -> MLSvc : wyznaczFilmONajwyzszej\nSredniejOcenWGrupie()
+    MLSvc -> DB : zapiszPropozycje(GRUPOWY, SREDNIA_OCEN)
+    activate DB
+    DB --> MLSvc : propozycjaId, film
+    deactivate DB
+    MLSvc --> GroupSvc : propozycjaFilmu (najwyższa średnia ocen)
+  end
+  deactivate MLSvc
+
+  GroupSvc -> DB : zmienStatusGrupy(PROPOZYCJA_WYGENEROWANA)
+  activate DB
+  DB --> GroupSvc : OK
+  deactivate DB
+
+  GroupSvc --> UI : rozgłoś propozycję do pokoju (≤ 3 s)\n[US-5 AC2, NFR Obciążenie]
+  deactivate GroupSvc
+  UI --> Admin : wyświetl ten sam wylosowany tytuł filmu
+  UI --> User : wyświetl ten sam wylosowany tytuł filmu
+  deactivate UI
+end
+
+== Faza 5: Akceptacja wyboru, kolejny seans (maraton) i wygasanie grupy tymczasowej [FR-07, FR-10] ==
+
+Admin -> UI : akceptujPropozycje(propozycjaId)
+activate UI
+UI -> GroupSvc : zatwierdzWybor(grupaId, propozycjaId) [HTTPS]
+activate GroupSvc
+GroupSvc -> DB : ustawStatusPropozycji(ZAAKCEPTOWANY),\nstatusGrupy(FILM_WYBRANY), odswiezAktywnosc()
+activate DB
+DB --> GroupSvc : potwierdzenie zapisu
+deactivate DB
+GroupSvc --> UI : film zatwierdzony
+deactivate GroupSvc
+UI --> Admin : wyświetl zatwierdzony tytuł filmu
+UI --> User : wyświetl zatwierdzony tytuł filmu
+deactivate UI
+
+note over GroupSvc, DB
+  Zarówno grupa TYMCZASOWA (np. maraton filmowy), jak i STALA
+  pozostają otwarte po wyborze filmu — można ponowić Fazę 4.
+end note
+
+opt Typ == TYMCZASOWA: upływ krótkiego czasu nieaktywności (timeout) [FR-07]
+  GroupSvc -> GroupSvc : wykryjBrakAktywnosci(grupaId, timeout)
+  activate GroupSvc
+  GroupSvc -> DB : zmienStatusGrupy(ZAKONCZONA)
+  activate DB
+  DB --> GroupSvc : sesja tymczasowa zamknięta
+  deactivate DB
+  GroupSvc --> UI : informacja o zamknięciu nieaktywnej sesji
+  deactivate GroupSvc
+  UI --> Admin : sesja tymczasowa wygasła
+  UI --> User : sesja tymczasowa wygasła
+end
+
+@enduml

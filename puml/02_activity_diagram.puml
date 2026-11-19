@@ -1,0 +1,118 @@
+@startuml 02_activity_diagram
+skinparam dpi 165
+skinparam shadowing false
+skinparam defaultFontName "Inter"
+skinparam defaultFontSize 12
+skinparam roundcorner 12
+
+skinparam titleFontSize 18
+skinparam titleFontColor #1E3A5F
+skinparam footerFontSize 10
+skinparam footerFontColor #64748B
+
+skinparam activity {
+  BackgroundColor #EAF2FA
+  BorderColor #1E3A5F
+  FontColor #0F172A
+  DiamondBackgroundColor #FFF4E0
+  DiamondBorderColor #C67C00
+  DiamondFontColor #451A03
+  StartColor #1E3A5F
+  EndColor #1E3A5F
+  BarColor #1E3A5F
+}
+
+skinparam swimlane {
+  BorderColor #94A3B8
+  BorderThickness 1.5
+  TitleFontColor #1E3A5F
+  TitleFontStyle bold
+  TitleFontSize 14
+}
+
+skinparam note {
+  BackgroundColor #FFFBEB
+  BorderColor #D97706
+  FontColor #451A03
+  FontSize 11
+}
+
+skinparam arrow {
+  Color #334155
+  FontColor #1E293B
+  FontSize 11
+}
+
+title Diagram Czynności (Activity Diagram) — Sesja grupowa i grupowe dobieranie filmu (MVP v1.0)
+
+|#F8FAFC|Administrator grupy|
+start
+:Zainicjuj utworzenie nowej grupy w aplikacji mobilnej\n(podaj nazwę i typ: tymczasowa lub stała)\n<b>[FR-07]</b>;
+
+|#F0FDF4|System MovieMatch|
+:Utwórz obiekt Grupa (status: UTWORZONA),\nprzypisz rolę Administratora i wygeneruj link zaproszenia\n<b>[FR-07, US-4 AC1]</b>;
+
+|Administrator grupy|
+:Skopiuj i udostępnij link zaproszenia poza aplikacją\n(np. przez Messenger / SMS) <b>[US-4 AC1]</b>;
+
+|#F8FAFC|Uczestnik sesji grupowej|
+:Otwórz otrzymany link zaproszenia w aplikacji mobilnej\n(dołączenie jednym kliknięciem) <b>[FR-06]</b>;
+
+|System MovieMatch|
+if (Czy użytkownik jest\nzalogowany? <b>[FR-03]</b>) then (Nie — Gość\n[alt. 1])
+  |Uczestnik sesji grupowej|
+  :Przekierowanie do ekranu\nlogowania / rejestracji\n<b>[FR-02, FR-03]</b>;
+  :Zaloguj się i potwierdź\ndołączenie do grupy;
+  |System MovieMatch|
+else (Tak)
+endif
+
+:Dodaj użytkownika jako aktywnego uczestnika\ngrupy i odśwież listę w pokoju <b>[FR-06]</b>;
+
+|Administrator grupy|
+if (Czy usunąć uczestnika\nz grupy? <b>[FR-13, US-4 AC3]</b>) then (Tak [alt. 2])
+  :Wskaż uczestnika do usunięcia\nz utworzonej grupy <b>[US-4 AC3]</b>;
+  |System MovieMatch|
+  :Dezaktywuj członkostwo i wyklucz jego oceny\noraz wektor preferencji z dobierania\n<b>[FR-13, US-4 AC4]</b>;
+else (Nie)
+endif
+
+|Uczestnik sesji grupowej|
+repeat :Uruchom grupowe dobieranie filmu\n<b>[FR-10]</b>;
+
+  |System MovieMatch|
+  repeat :Zmień status grupy na W_TRAKCIE_DOBIERANIA\ni zaktualizuj czas ostatniej aktywności;
+    :Pobierz wektory preferencji i oceny wyłącznie\naktywnych członków grupy\n<b>[FR-10, US-4 AC4, US-5 AC1]</b>;
+    :Oblicz wspólny profil preferencji (model ML)\ni dopasuj kandydatów z katalogu wektorów filmów\n<b>[NFR Algorytm, US-5 AC1]</b>;
+
+    if (Czy znaleziono idealne dopasowanie\nwektorowe ML? <b>[US-5 AC3]</b>) then (Tak)
+      :Wybierz najlepiej dopasowany tytuł\nwedług podobieństwa wektorów ML\n<b>[US-5 AC1]</b>;
+    else (Nie — brak dopasowania\n[alt. 3])
+      :Tryb awaryjny: wybierz film\no najwyższej średniej ocen wewnątrz grupy\n<b>[US-5 AC3]</b>;
+    endif
+
+    :Zapisz PropozycjaFilmu (tryb: GRUPOWY)\ni zsynchronizuj ten sam tytuł na ekranach\nwszystkich uczestników pokoju <b>[US-5 AC2]</b>;
+
+    |Uczestnik sesji grupowej|
+    :Wyświetl wspólnie wylosowany\ntytuł filmu <b>[US-5 AC2]</b>;
+
+  repeat while (Czy grupa akceptuje\nzaproponowany film?) is (Nie — odrzuć\ni losuj kolejny)
+  -> Tak — akceptacja;
+
+  |System MovieMatch|
+  :Zatwierdź PropozycjaFilmu (ZAAKCEPTOWANY),\nustaw status grupy: FILM_WYBRANY\ni odśwież czas ostatniej aktywności <b>[FR-10]</b>;
+
+  |Uczestnik sesji grupowej|
+repeat while (Czy dobrać kolejny film\nw tej sesji, np. maraton?) is (Tak — kolejne\ndobieranie)
+-> Nie — koniec dobierania;
+
+|System MovieMatch|
+if (Czy grupa ma typ\nTYMCZASOWA? <b>[FR-07]</b>) then (Tak — tymczasowa)
+  :Utrzymuj sesję aktywną do upływu krótkiego\nczasu nieaktywności (timeout), a następnie\nzamknij grupę (status: ZAKONCZONA) <b>[FR-07]</b>;
+else (Nie — stała)
+  :Pozostaw grupę stałą aktywną\ndo kolejnych spotkań lub usunięcia\nprzez Administratora <b>[FR-07, FR-13]</b>;
+endif
+
+stop
+
+@enduml
