@@ -47,7 +47,7 @@ title Diagram Czynności (Activity Diagram) — Sesja grupowa i grupowe dobieran
 
 |#F8FAFC|Administrator grupy|
 start
-:Zainicjuj utworzenie nowej grupy w aplikacji mobilnej\n(podaj nazwę i typ: tymczasowa lub stała)\n<b>[FR-07]</b>;
+:Zainicjuj utworzenie nowej grupy w aplikacji webowej\n(podaj nazwę i typ: tymczasowa lub stała)\n<b>[FR-07]</b>;
 
 |#F0FDF4|System MovieMatch|
 :Utwórz obiekt Grupa (status: UTWORZONA),\nprzypisz rolę Administratora i wygeneruj link zaproszenia\n<b>[FR-07, US-4 AC1]</b>;
@@ -56,7 +56,7 @@ start
 :Skopiuj i udostępnij link zaproszenia poza aplikacją\n(np. przez Messenger / SMS) <b>[US-4 AC1]</b>;
 
 |#F8FAFC|Uczestnik sesji grupowej|
-:Otwórz otrzymany link zaproszenia w aplikacji mobilnej\n(dołączenie jednym kliknięciem) <b>[FR-06]</b>;
+:Otwórz otrzymany link zaproszenia w przeglądarce\n(dołączenie jednym kliknięciem) <b>[FR-06]</b>;
 
 |System MovieMatch|
 if (Czy użytkownik jest\nzalogowany? <b>[FR-03]</b>) then (Nie — Gość\n[alt. 1])
@@ -108,7 +108,7 @@ repeat while (Czy dobrać kolejny film\nw tej sesji, np. maraton?) is (Tak — k
 
 |System MovieMatch|
 if (Czy grupa ma typ\nTYMCZASOWA? <b>[FR-07]</b>) then (Tak — tymczasowa)
-  :Utrzymuj sesję aktywną do upływu krótkiego\nczasu nieaktywności (timeout), a następnie\nzamknij grupę (status: ZAKONCZONA) <b>[FR-07]</b>;
+  :Utrzymuj sesję aktywną do upływu 6 godzin\nnieaktywności, a następnie automatycznie\nusuń grupę (status: ZAKONCZONA) <b>[FR-07, US-4 AC5]</b>;
 else (Nie — stała)
   :Pozostaw grupę stałą aktywną\ndo kolejnych spotkań lub usunięcia\nprzez Administratora <b>[FR-07, FR-13]</b>;
 endif

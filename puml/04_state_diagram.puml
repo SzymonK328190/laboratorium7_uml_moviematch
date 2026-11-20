@@ -79,14 +79,14 @@ state "Aktywna Grupa" as AktywnaGrupa #F8FAFC {
 }
 
 state "ZAKONCZONA\n(Wygasła)" as Zakonczona #E2E8F0 {
-  Zakonczona : entry / zamknij i zarchiwizuj sesję tymczasową\n  po przekroczeniu czasu nieaktywności [FR-07]
+  Zakonczona : entry / automatycznie usuń sesję tymczasową\n  po 6 godzinach nieaktywności [FR-07, US-4 AC5]
 }
 
 state "USUNIETA\n(Anulowana)" as Usunieta #FDECEC {
   Usunieta : entry / usuń grupę i powiązane\n  członkostwa (kompozycja) [FR-13]
 }
 
-AktywnaGrupa --> Zakonczona : after(czasNieaktywnosci*)\n[typ == TYMCZASOWA]\n[FR-07]
+AktywnaGrupa --> Zakonczona : after(6h nieaktywności)\n[typ == TYMCZASOWA]\n[FR-07, US-4 AC5]
 
 AktywnaGrupa --> Usunieta : usunGrupe()\n[wywołane przez Administratora]\n[FR-13]
 
@@ -94,9 +94,8 @@ Zakonczona --> [*]
 Usunieta --> [*]
 
 note bottom of Usunieta
-  <b>Uwaga (*):</b> Warunek [aktywni uczestnicy ≥ 2] oraz dokładna długość
-  krótkiego czasu nieaktywności (timeout) dla grupy tymczasowej
-  stanowią kwestie do doprecyzowania w dokumentacji z PO (pkt 6 raportu).
+  <b>Uwaga (*):</b> Warunek [aktywni uczestnicy ≥ 2] stanowi kwestię
+  do potwierdzenia z Product Ownerem (pkt 5 raportu).
 end note
 
 @enduml

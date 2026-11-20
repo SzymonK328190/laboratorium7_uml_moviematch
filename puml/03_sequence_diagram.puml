@@ -51,7 +51,7 @@ autonumber "<b>[00]</b> "
 
 actor "Administrator\ngrupy" as Admin
 actor "Uczestnik\n(Użytkownik)" as User
-boundary "Aplikacja Mobilna\n(Klient HTTPS)" as UI
+boundary "Aplikacja Web\n(Klient HTTPS)" as UI
 control "Serwis Grup\n(Grupa)" as GroupSvc
 control "Silnik ML\n(PropozycjaFilmu)" as MLSvc
 database "Baza Danych\n(Uzytkownik, Film,\nOcena, Grupa)" as DB
@@ -75,7 +75,7 @@ Admin ->> User : prześlij link zaproszenia poza aplikacją\n(np. Messenger / SM
 
 == Faza 2: Dołączenie uczestnika do grupy linkiem [FR-06, FR-03] ==
 
-User -> UI : otworzLinkZaproszenia(kodZaproszenia) [deep-link]
+User -> UI : otworzLinkZaproszenia(kodZaproszenia) [URL]
 activate UI
 UI -> GroupSvc : dolaczDoGrupy(kodZaproszenia, tokenSesji) [HTTPS]
 activate GroupSvc
@@ -185,17 +185,17 @@ note over GroupSvc, DB
   pozostają otwarte po wyborze filmu — można ponowić Fazę 4.
 end note
 
-opt Typ == TYMCZASOWA: upływ krótkiego czasu nieaktywności (timeout) [FR-07]
-  GroupSvc -> GroupSvc : wykryjBrakAktywnosci(grupaId, timeout)
+opt Typ == TYMCZASOWA: upływ 6 godzin nieaktywności [FR-07, US-4 AC5]
+  GroupSvc -> GroupSvc : wykryjBrakAktywnosci(grupaId, 6h)
   activate GroupSvc
-  GroupSvc -> DB : zmienStatusGrupy(ZAKONCZONA)
+  GroupSvc -> DB : zmienStatusGrupy(ZAKONCZONA) / usuń grupę tymczasową
   activate DB
   DB --> GroupSvc : sesja tymczasowa zamknięta
   deactivate DB
   GroupSvc --> UI : informacja o zamknięciu nieaktywnej sesji
   deactivate GroupSvc
-  UI --> Admin : sesja tymczasowa wygasła
-  UI --> User : sesja tymczasowa wygasła
+  UI --> Admin : sesja tymczasowa wygasła (6h nieaktywności)
+  UI --> User : sesja tymczasowa wygasła (6h nieaktywności)
 end
 
 @enduml
