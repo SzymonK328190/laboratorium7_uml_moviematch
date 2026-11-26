@@ -45,7 +45,7 @@ rectangle "Aktorzy systemu (poza granicą)" as ActorsPkg #F8FAFC;line:64748B;lin
 }
 
 ' ==================== GRANICA SYSTEMU ====================
-rectangle "«Granica Systemu — Aplikacja webowa (mobile-first) + Backend»\n\n<b>System MovieMatch</b>\n\n• Rejestracja i logowanie, hashowanie haseł (FR-02, FR-03)\n• Początkowa ankieta preferencji gatunkowych (FR-01)\n• Ocenianie filmów 1.0–10.0 i ranking ocen (FR-04, FR-08)\n• Silnik rekomendacji ML — wektory filmów i preferencji (FR-10, FR-11)\n• Tworzenie grup (tymczasowych i stałych), dołączanie linkiem, zarządzanie (FR-06, FR-07, FR-13)\n• Synchronizacja widoku propozycji w sesji grupowej (US-5 AC2)" as MovieMatch #E6F4EA;line:2E7D32;line.bold
+rectangle "«Granica Systemu — Aplikacja webowa (mobile-first) + Backend PHP / ML»\n\n<b>System MovieMatch</b>\n\n• Rejestracja i logowanie, hashowanie haseł (FR-02, FR-03)\n• Początkowa ankieta preferencji gatunkowych (FR-01)\n• Katalog filmów, wyszukiwanie, ocenianie 1.0–10.0 i ranking (FR-04, FR-08)\n• Silnik rekomendacji ML — wektory filmów i preferencji (FR-10, FR-11)\n• Tworzenie grup (tymczasowych i stałych), dołączanie linkiem, zarządzanie (FR-06, FR-07, FR-13)\n• Synchronizacja widoku propozycji w sesji grupowej (US-5 AC2)" as MovieMatch #E6F4EA;line:2E7D32;line.bold
 
 ' ==================== SYSTEMY ZEWNĘTRZNE I OTOCZENIE ====================
 rectangle "Otoczenie i systemy zewnętrzne (poza granicą)" as ExtPkg #FFFDF7;line:C67C00;line.dashed {
@@ -53,13 +53,13 @@ rectangle "Otoczenie i systemy zewnętrzne (poza granicą)" as ExtPkg #FFFDF7;li
 
   rectangle "«Kanał zewnętrzny»\n<b>Zewnętrzny komunikator</b>\n(np. Messenger, SMS, WhatsApp)\nRęczne przekazanie linku zaproszenia\nprzez użytkownika (poza aplikacją)" as Messenger #FFF4E0;line:C67C00
 
-  rectangle "«System zewnętrzny»\n<b>Zewnętrzna baza filmów</b>\n(np. TMDB — do potwierdzenia z PO)\nKatalog tytułów, gatunki, metadane" as MovieDB #FFF4E0;line:C67C00
+  rectangle "«System zewnętrzny»\n<b>TMDB (The Movie Database)</b>\nKatalog filmów (~8 244), gatunki,\nobsada, słowa kluczowe, plakaty" as MovieDB #FFF4E0;line:C67C00
 
   rectangle "«System zewnętrzny»\n<b>System kopii zapasowych</b>\n(Backup Storage)\nZewnętrzny magazyn archiwalny" as BackupSvc #FFF4E0;line:C67C00
 }
 
 ' ==================== RELACJE AKTORZY <-> SYSTEM ====================
-Guest --> MovieMatch : Dane rejestracji (e-mail, nazwa użytkownika, hasło)\n← potwierdzenie / przekierowanie [FR-02]
+Guest --> MovieMatch : Przeglądanie/wyszukiwanie katalogu;\nrejestracja (e-mail, nazwa użytkownika, hasło)\n← katalog lub przekierowanie do logowania [FR-02, FR-04]
 
 User --> MovieMatch : Logowanie, ankieta, oceny (1.0–10.0),\nranking, dobieranie ind., dołączanie linkiem\n← rekomendacje i profil\n[FR-01, FR-03, FR-04, FR-06, FR-07, FR-08, FR-11]
 
@@ -72,7 +72,7 @@ MovieMatch <--> Browser : Interfejs webowy responsywny (mobile-first, HTTPS)\n(�
 
 MovieMatch ..> Messenger : Wygenerowany link URL zaproszenia\nprzekazywany przez użytkownika\n(kopiuj / udostępnij) [US-4 AC1]
 
-MovieMatch <-- MovieDB : Katalog filmów, gatunki i metadane\ndo zasilania wektorów ML\n[NFR Algorytm dobierania filmów]
+MovieMatch <-- MovieDB : Synchronizacja katalogu filmów, metadanych\ni plakatów do zasilania wektorów ML\n[NFR Algorytm dobierania filmów]
 
 MovieMatch --> BackupSvc : Automatyczna pełna kopia zapasowa\nbazy danych (oceny, profile, grupy)\nco najmniej 1× na dobę [NFR Niezawodność]
 

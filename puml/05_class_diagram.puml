@@ -40,10 +40,11 @@ skinparam arrow {
 title Diagram Klas (Class Diagram) — Podstawowa struktura systemu MovieMatch (MVP v1.0)
 
 class Uzytkownik {
-  - id : UUID
+  - id : Integer
   - email : String {unique}
+  - nazwaUzytkownika : String {unique}
   - hasloHash : String
-  - nazwaUzytkownika : String
+  - aktywny : Boolean
   - ankietaWypelniona : Boolean
   - ulubioneGatunki : List<String>
   - wektorPreferencji : Float[]
@@ -56,8 +57,8 @@ class Uzytkownik {
 }
 
 class Ocena {
-  - id : UUID
-  - wartosc : Decimal {1.0..10.0}
+  - id : Integer
+  - wartosc : Decimal(3,1) {1.0..10.0, krok 0.1}
   - dataDodania : DateTime
   - dataModyfikacji : DateTime
   --
@@ -66,17 +67,25 @@ class Ocena {
 }
 
 class Film {
-  - id : UUID
+  - id : Integer
+  - tmdbId : Integer {unique}
   - tytul : String
+  - opis : String [0..1]
+  - rokProdukcji : Integer [0..1]
+  - czasTrwaniaMin : Integer [0..1]
+  - rezyser : String [0..1]
   - gatunki : List<String>
-  - rokProdukcji : Integer
+  - obsada : List<String>
+  - plakatUrl : String [0..1]
+  - sredniaTmdb : Float
+  - liczbaGlosow : Integer
   - wektorCech : Float[]
   --
   + obliczSredniaOcen(uczestnicy : List<Uzytkownik>) : Decimal
 }
 
 class CzlonkostwoGrupy {
-  - id : UUID
+  - id : Integer
   - rola : {ADMINISTRATOR, UCZESTNIK}
   - dolaczonoO : DateTime
   - aktywne : Boolean
@@ -85,7 +94,7 @@ class CzlonkostwoGrupy {
 }
 
 class Grupa {
-  - id : UUID
+  - id : Integer
   - nazwa : String
   - typ : {TYMCZASOWA, STALA}
   - kodZaproszenia : String {unique}
@@ -101,7 +110,7 @@ class Grupa {
 }
 
 class PropozycjaFilmu {
-  - id : UUID
+  - id : Integer
   - tryb : {INDYWIDUALNY, GRUPOWY}
   - wynikDopasowania : Float
   - metodaDopasowania : {WEKTOR_ML, SREDNIA_OCEN}

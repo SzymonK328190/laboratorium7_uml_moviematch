@@ -31,7 +31,7 @@ Jako kluczowy scenariusz z zakresu **MVP v1.0** (wspólny dla diagramu czynnośc
 - **Otoczenie i systemy zewnętrzne (bez szczegółów API):**
   1. **Przeglądarka WWW (Smartfon / Tablet / Desktop)** — środowisko klienckie uruchamiające responsywny interfejs webowy (*mobile-first*) przez HTTPS (`NFR Kompatybilność`, `NFR Prywatność`, `NFR Obciążenie`).
   2. **Zewnętrzny komunikator (np. Messenger, SMS, WhatsApp)** — kanał poza aplikacją, przez który użytkownik samodzielnie udostępnia wygenerowany w MovieMatch link URL zaproszenia (`US-4 AC1`).
-  3. **Zewnętrzna baza filmów (np. TMDB)** — źródło katalogu filmów, gatunków i metadanych zasilających wektory ML *(do potwierdzenia z Product Ownerem)*.
+  3. **TMDB (The Movie Database)** — potwierdzone źródło katalogu filmów (~8 244 tytuły), gatunków, obsady, słów kluczowych, czasu trwania i plakatów zasilających aplikację i wektory ML.
   4. **System kopii zapasowych (Backup Storage)** — zewnętrzny magazyn przyjmujący automatyczny, pełny backup bazy danych co najmniej raz na dobę (`NFR Niezawodność`).
 
 ### 1.2. Diagram czynności (Activity Diagram) — [`02_activity_diagram`](pdf/02_activity_diagram.pdf)
@@ -44,9 +44,9 @@ Jako kluczowy scenariusz z zakresu **MVP v1.0** (wspólny dla diagramu czynnośc
   4. **Pętla akceptacji i pętla maratonu:** możliwość odrzucenia zaproponowanego tytułu i wylosowania kolejnego, a po wyborze filmu — opcja ponownego dobierania kolejnego tytułu w tej samej sesji (zarówno dla grup stałych, jak i tymczasowych).
 
 ### 1.3. Diagram przebiegu (Sequence Diagram) — [`03_sequence_diagram`](pdf/03_sequence_diagram.pdf)
-- Opisuje **ten sam scenariusz** z perspektywy chronologicznej wymiany komunikatów (`[01]`–`[55]`) pomiędzy 6 liniami życia: `Administrator grupy`, `Uczestnik (Użytkownik)`, `Aplikacja Web (Klient HTTPS)`, `Serwis Grup (Grupa)`, `Silnik ML (PropozycjaFilmu)` oraz `Baza Danych`.
-- Udostępnienie linku zaproszenia odbywa się bezpośrednio między aktorami poza aplikacją (np. przez Messenger/SMS — `[07]`), a dołączenie następuje po otwarciu linku URL w przeglądarce (`[08]`).
-- Zawiera 5 faz oraz fragmenty złożone UML (`alt`, `opt`, `loop`), w tym blok `opt` automatycznego zamykania/usuwania grupy **tymczasowej** po upływie **6 godzin nieaktywności** (`FR-07`, `US-4 AC5`), z odświeżaniem `ostatniaAktywnoscO` przy każdej akcji w pokoju.
+- Opisuje **ten sam scenariusz** z perspektywy chronologicznej wymiany komunikatów pomiędzy 6 liniami życia zgodnymi z architekturą systemu: `Administrator grupy`, `Uczestnik (Użytkownik)`, `Aplikacja Web (HTML/JS, HTTPS)`, `Backend PHP (Serwis Grup)`, `Mikroserwis ML (Python FastAPI)` oraz `Baza MariaDB`.
+- Udostępnienie linku zaproszenia odbywa się bezpośrednio między aktorami poza aplikacją (np. przez Messenger/SMS), dołączenie korzysta z sesji PHP (`HttpOnly`, `SameSite=Lax`), a synchronizacja widoku pokoju grupowego realizowana jest przez **polling JS** (`fetch` co 1–2 s).
+- Zawiera 5 faz oraz fragmenty złożone UML (`alt`, `opt`, `loop`), w tym blok `opt` automatycznego zamykania/usuwania grupy **tymczasowej** po upływie **6 godzin nieaktywności** przez zadanie `Cron` (`FR-07`, `US-4 AC5`).
 
 ### 1.4. Diagram stanu (State Diagram) — [`04_state_diagram`](pdf/04_state_diagram.pdf)
 - Modeluje cykl życia kluczowego obiektu dziedzinowego **`Grupa`** (sesja grupowa) z użyciem stanu złożonego `Aktywna Grupa` oraz 7 spójnych stanów:
@@ -56,10 +56,10 @@ Jako kluczowy scenariusz z zakresu **MVP v1.0** (wspólny dla diagramu czynnośc
   - stan końcowy `USUNIETA (Anulowana)` osiągalny z dowolnego stanu aktywnego poprzez zdarzenie `usunGrupe() [Administrator]` (`FR-13`).
 
 ### 1.5. Diagram klas (Class Diagram) — [`05_class_diagram`](pdf/05_class_diagram.pdf)
-- Zawiera dokładnie **6 kluczowych klas dziedzinowych** (zgodnie z zaleceniem 3–6 klas):
-  1. `Uzytkownik` — konto (`email`, `nazwaUzytkownika`, `hasloHash`), stan ankiety początkowej, ulubione gatunki, wektor preferencji ML, znacznik `usunietyO` (24h).
-  2. `Film` — tytuł, gatunki, rok produkcji, wektor cech ML (`wektorCech`).
-  3. `Ocena` — wartość w skali `1.0..10.0` z dziesiętnymi, daty dodania i modyfikacji (sortowanie i edycja/usuwanie z rankingu).
+- Zawiera dokładnie **6 kluczowych klas dziedzinowych** (klucze główne typu `Integer` spójne ze schematem MariaDB `AUTO_INCREMENT`):
+  1. `Uzytkownik` — konto (`email {unique}`, `nazwaUzytkownika {unique}`, `hasloHash`, `aktywny`), stan ankiety początkowej, ulubione gatunki, wektor preferencji ML, znacznik `usunietyO` (24h).
+  2. `Film` — `tmdbId {unique}`, tytuł, opis, rok produkcji, czas trwania (`runtime`), reżyser, gatunki, obsada, URL plakatu, statystyki TMDB (`sredniaTmdb`, `liczbaGlosow`) i wektor cech ML (`wektorCech`).
+  3. `Ocena` — wartość `Decimal(3,1)` w skali `1.0..10.0` (krok `0.1`), daty dodania i modyfikacji (sortowanie i edycja/usuwanie z rankingu).
   4. `Grupa` — nazwa, typ (`TYMCZASOWA` / `STALA`), kod zaproszenia, status spójny 1:1 ze State Diagramem, `utworzonaO` oraz `ostatniaAktywnoscO` (kontrola 6-godzinnego wygasania grupy tymczasowej).
   5. `CzlonkostwoGrupy` — rola (`ADMINISTRATOR` / `UCZESTNIK`), data dołączenia, flaga `aktywne` (wykluczanie preferencji usuniętych członków).
   6. `PropozycjaFilmu` — tryb (`INDYWIDUALNY` / `GRUPOWY`), wynik dopasowania, metoda (`WEKTOR_ML` / `SREDNIA_OCEN`), status propozycji.
@@ -71,20 +71,20 @@ Jako kluczowy scenariusz z zakresu **MVP v1.0** (wspólny dla diagramu czynnośc
 | Wymaganie / NFR | Model kontekstowy | Activity | Sequence | State (`Grupa`) | Class Diagram |
 |---|:---:|:---:|:---:|:---:|:---:|
 | **FR-01** Początkowa ankieta (`Must v1.0`) | Granica systemu, relacja `Użytkownik` | — *(poza wybranym scenariuszem)* | — | — | `Uzytkownik.ankietaWypelniona`, `ulubioneGatunki`, `wypelnijAnkiete()` |
-| **FR-02** Rejestracja (e-mail, nazwa użytkownika, hasło) | Aktor `Gość` → System | Alt. 1 (przekierowanie Gościa) | `alt` Gość → logowanie/rejestracja | — | `Uzytkownik.email {unique}`, `nazwaUzytkownika`, `hasloHash` |
-| **FR-03** Logowanie użytkownika | Aktor `Użytkownik` → System | Weryfikacja zalogowania | Weryfikacja `tokenSesji`, `401` | Guard `[zalogowany]` przy `dolaczDoGrupy()` | `Uzytkownik.email`, `hasloHash` |
-| **FR-04** Ocenianie filmów (`1.0–10.0`) | Granica systemu, przepływ ocen | Pobranie ocen do ML | Pobranie ocen z DB | Wykorzystanie w `W_TRAKCIE_DOBIERANIA` | `Ocena.wartosc {1.0..10.0}`, `Uzytkownik.wystawOcene()` |
-| **FR-06** Dołączanie do grupy (1 kliknięcie) | `Użytkownik`, `Zewnętrzny komunikator` | Otwarcie linku w przeglądarce i dodanie do pokoju | Faza 1 (`[07]`) i Faza 2 (`[08]`–`[16]`) | `OCZEKUJACA`: `dolaczDoGrupy()` | `Grupa.dodajCzlonka()`, `CzlonkostwoGrupy` |
-| **FR-07** Tworzenie grupy (tymczasowa 6h / stała) | `Administrator` → System | Start + maraton + automatyczne usunięcie po 6h nieaktywności | Faza 1 (`[01]`–`[06]`) i Faza 5 (`opt 6h`) | `UTWORZONA`, maraton, `after(6h nieaktywności)` → `ZAKONCZONA` | `Grupa.typ`, `kodZaproszenia`, `ostatniaAktywnoscO` |
+| **FR-02** Rejestracja (e-mail, nazwa użytkownika, hasło) | Aktor `Gość` → System | Alt. 1 (przekierowanie Gościa) | `alt` Gość → logowanie/rejestracja | — | `Uzytkownik.email {unique}`, `nazwaUzytkownika {unique}`, `hasloHash` |
+| **FR-03** Logowanie użytkownika | Aktor `Użytkownik` → System | Weryfikacja zalogowania | Weryfikacja sesji PHP, `401` | Guard `[zalogowany]` przy `dolaczDoGrupy()` | `Uzytkownik.email`, `nazwaUzytkownika`, `hasloHash`, `aktywny` |
+| **FR-04** Ocenianie filmów (`1.0–10.0`) | Granica systemu, katalog (Gość) i oceny (Użytkownik) | Pobranie ocen do ML | Pobranie ocen z MariaDB | Wykorzystanie w `W_TRAKCIE_DOBIERANIA` | `Ocena.wartosc {1.0..10.0, krok 0.1}`, `Uzytkownik.wystawOcene()` |
+| **FR-06** Dołączanie do grupy (1 kliknięcie) | `Użytkownik`, `Zewnętrzny komunikator` | Otwarcie linku w przeglądarce i dodanie do pokoju | Faza 1 i Faza 2 | `OCZEKUJACA`: `dolaczDoGrupy()` | `Grupa.dodajCzlonka()`, `CzlonkostwoGrupy` |
+| **FR-07** Tworzenie grupy (tymczasowa 6h / stała) | `Administrator` → System | Start + maraton + automatyczne usunięcie po 6h nieaktywności | Faza 1 i Faza 5 (`opt 6h` Cron) | `UTWORZONA`, maraton, `after(6h nieaktywności)` → `ZAKONCZONA` | `Grupa.typ`, `kodZaproszenia`, `ostatniaAktywnoscO` |
 | **FR-08** Ranking filmów (sortowanie, edycja, usuwanie) | Granica systemu, `Użytkownik` | — *(poza wybranym scenariuszem)* | — | — | `Ocena.dataDodania`, `edytujOcene()`, `usunOcene()` |
-| **FR-10** Dobieranie grupowo filmu (`US-5 AC1–AC3`) | `Uczestnik` ↔ System | Pętla ML + Alt. 3 (średnia) + synchronizacja | Faza 4 (`[23]`–`[42]`) i Faza 5 | `W_TRAKCIE_DOBIERANIA` → `PROPOZYCJA_WYGENEROWANA` → `FILM_WYBRANY` | `PropozycjaFilmu` (`GRUPOWY`, `WEKTOR_ML`/`SREDNIA_OCEN`), `Grupa.dobierzFilmGrupowo()` |
+| **FR-10** Dobieranie grupowo filmu (`US-5 AC1–AC3`) | `Uczestnik` ↔ System | Pętla ML + Alt. 3 (średnia) + synchronizacja | Faza 4 i Faza 5 (polling JS) | `W_TRAKCIE_DOBIERANIA` → `PROPOZYCJA_WYGENEROWANA` → `FILM_WYBRANY` | `PropozycjaFilmu` (`GRUPOWY`, `WEKTOR_ML`/`SREDNIA_OCEN`), `Grupa.dobierzFilmGrupowo()` |
 | **FR-11** Dobieranie indywidualnie filmu | `Użytkownik` ↔ System | — *(poza wybranym scenariuszem)* | — | — | `PropozycjaFilmu` (`INDYWIDUALNY`), `Uzytkownik.dobierzFilmIndywidualnie()` |
-| **FR-13** Zarządzanie grupą (`US-4 AC3–AC4`) | `Administrator` ↔ System | Alt. 2: wyrzucenie i pominięcie ocen | Faza 3 `opt` (`[17]`–`[22]`) + filtr `aktywne=true` | `usunCzlonka()`, `zmienNazwe()`, przejście `usunGrupe()` → `USUNIETA` | `Grupa.usunCzlonka()`, `zmienNazwe()`, `usunGrupe()`, `CzlonkostwoGrupy.aktywne` |
-| **NFR** Kompatybilność (*web mobile-first*) i Prywatność (HTTPS, 24h) | `Przeglądarka WWW` (*mobile-first*, HTTPS) | Aplikacja webowa | `Aplikacja Web (Klient HTTPS)`, `[HTTPS]` | — | `Uzytkownik.usunietyO [0..1]` |
+| **FR-13** Zarządzanie grupą (`US-4 AC3–AC4`) | `Administrator` ↔ System | Alt. 2: wyrzucenie i pominięcie ocen | Faza 3 `opt` + filtr `aktywne=true` | `usunCzlonka()`, `zmienNazwe()`, przejście `usunGrupe()` → `USUNIETA` | `Grupa.usunCzlonka()`, `zmienNazwe()`, `usunGrupe()`, `CzlonkostwoGrupy.aktywne` |
+| **NFR** Kompatybilność (*web mobile-first*) i Prywatność (HTTPS, 24h) | `Przeglądarka WWW` (*mobile-first*, HTTPS) | Aplikacja webowa | `Aplikacja Web (HTML/JS, HTTPS)` | — | `Uzytkownik.usunietyO [0..1]` |
 | **NFR** Bezpieczeństwo (hashowanie haseł) | Zakres wewnątrz granicy systemu | — | — | — | `Uzytkownik.hasloHash` |
-| **NFR** Obciążenie (≤ 3 s, do 10 użytkowników) | Etykieta kanału `Przeglądarka WWW` ↔ System | — | Komunikat `[40]` (≤ 3 s) | — | — |
+| **NFR** Obciążenie (≤ 3 s, do 10 użytkowników) | Etykieta kanału `Przeglądarka WWW` ↔ System | — | Synchronizacja (≤ 3 s) | — | — |
 | **NFR** Niezawodność (backup ≥ 1×/dobę) | `System kopii zapasowych` (Backup Storage) | — | — | — | — |
-| **NFR** Algorytm ML (wektory filmów i preferencji) | Silnik ML w granicy + `Zewnętrzna baza filmów` | Obliczenie wspólnego profilu ML | Linia życia `Silnik ML` (`[27]`–`[37]`) | Aktywność `do /` w `W_TRAKCIE_DOBIERANIA` | `Film.wektorCech`, `Uzytkownik.wektorPreferencji` |
+| **NFR** Algorytm ML (wektory filmów i preferencji) | Silnik ML w granicy + `TMDB` | Obliczenie wspólnego profilu ML | Linia życia `Mikroserwis ML (Python FastAPI)` | Aktywność `do /` w `W_TRAKCIE_DOBIERANIA` | `Film.wektorCech`, `Uzytkownik.wektorPreferencji` |
 
 ---
 
@@ -103,17 +103,17 @@ W nowej wersji dokumentu poprawnie ujednolicono `FR-01` (dodano do MUST i usuni�
 
 ## 4. Pytania i decyzje biznesowe do wyjaśnienia z Product Ownerem
 
-| ID | Obszar / Model | Pytanie do Product Ownera | Wpływ na implementację i modele |
+| ID | Obszar / Model | Pytanie / Decyzja | Status / Wpływ na implementację i modele |
 |---|---|---|---|
-| **Q-01** | Context, Class | **Skąd pochodzi katalog filmów i ich metadane?** Zewnętrzne API (np. TMDB) czy własny statyczny zbiór danych dla modelu ML? | Zależność zewnętrzna w Modelu kontekstowym oraz zasilanie `Film.wektorCech`. |
-| **Q-02** | Activity, Sequence (`FR-10`, `US-5 AC3`) | **Jak definiujemy „idealne dopasowanie” w dobieraniu grupowym?** Jaki próg podobieństwa wektorów decyduje o wyborze ścieżki ML zamiast trybu awaryjnego (najwyższa średnia ocen w grupie)? | Warunek rozgałęzienia `alt` w `Silniku ML`. |
+| **Q-01** | Context, Class | **Skąd pochodzi katalog filmów i ich metadane?** | **Rozstrzygnięte:** API **TMDB** — zsynchronizowano ~8 244 filmy z gatunkami, obsadą, czasem trwania (`runtime`), słowami kluczowymi i plakatami do bazy MariaDB. |
+| **Q-02** | Activity, Sequence (`FR-10`, `US-5 AC3`) | **Jak definiujemy „idealne dopasowanie” w dobieraniu grupowym?** Jaki próg podobieństwa wektorów decyduje o wyborze ścieżki ML zamiast trybu awaryjnego (najwyższa średnia ocen w grupie)? | Warunek rozgałęzienia `alt` w `Mikroserwisie ML` (algorytm *Average + Least Misery*). |
 | **Q-03** | Activity, Sequence (`FR-10` vs `FR-11`) | **Czy w dobieraniu grupowym wykluczamy filmy ocenione już przez członków grupy?** (wszystkich, kogokolwiek, czy nie wykluczamy w trybie głównym ML?) | Logika filtrowania kandydatów w `wyznaczRekomendacjeGrupowa()`. |
-| **Q-04** | Activity, Sequence, State (`FR-10`) | **Kto w grupie może uruchomić losowanie, odrzucić propozycję i zaakceptować wybrany film?** Każdy uczestnik, wyłącznie Administrator grupy, czy głosowanie wszystkich? | Kontrola uprawnień w `Serwisie Grup` oraz strażniki przejść w `State Diagram`. |
-| **Q-05** | State, Sequence (`FR-07`, `FR-13`) | **(a) Czy grupowe dobieranie wymaga min. 2 aktywnych uczestników? (b) Co dzieje się z grupą stałą po odejściu lub usunięciu konta Administratora?** *(Czas wygasania grupy tymczasowej został już ustalony w `US-4 AC5` jako 6 godzin).* | Strażnik `[aktywni >= 2]` oraz obsługa przekazania/usunięcia grupy stałej. |
+| **Q-04** | Activity, Sequence, State (`FR-10`) | **Kto w grupie może uruchomić losowanie, odrzucić propozycję i zaakceptować wybrany film?** Każdy uczestnik, wyłącznie Administrator grupy, czy głosowanie wszystkich? | Kontrola uprawnień w `Backendzie PHP` oraz strażniki przejść w `State Diagram`. |
+| **Q-05** | State, Sequence (`FR-07`, `FR-13`) | **(a) Czy grupowe dobieranie wymaga min. 2 aktywnych uczestników? (b) Co dzieje się z grupą stałą po odejściu lub usunięciu konta Administratora?** *(Czas wygasania grupy tymczasowej: 6 godzin).* | Strażnik `[aktywni >= 2]` oraz obsługa przekazania/usunięcia grupy stałej. |
 | **Q-06** | Class, `FR-01` (`US-2 AC2`) | **Jaka jest minimalna wymagana liczba gatunków w początkowej ankiecie?** (np. 3 gatunki). | Walidacja formularza ankiety początkowej i inicjalizacja `wektorPreferencji`. |
 | **Q-07** | Class, `FR-08` (`US-8 AC3`) | **Czy edycja lub usunięcie oceny w rankingu natychmiast przelicza wektor preferencji użytkownika?** (`US-7 AC3` precyzuje to tylko dla wystawienia oceny). | Wywołanie `zaktualizujWektorPreferencji()` w `Ocena.edytujOcene()` / `usunOcene()`. |
-| **Q-08** | NFR Prywatność, Class | **Czy usuwanie konta (z 24-godzinnym oknem na cofnięcie) wchodzi w zakres MVP v1.0?** Jeśli tak — czy dopisujemy brakujące FR i US? | Zakres sprintów MVP v1.0 i harmonogram trwałego wymazywania danych. |
-| **Q-09** | Sequence (`US-5 AC2`), NFR Obciążenie | **Jaki mechanizm synchronizacji pokoju grupowego wybieramy w aplikacji webowej?** Przy maks. 10 jednoczesnych użytkownikach i wymogu ≤ 3 s: WebSocket/SSE czy cykliczny polling? | Architektura komunikacji w fazie 4 `Sequence Diagram`. |
+| **Q-08** | NFR Prywatność, Class | **Czy usuwanie konta (z 24-godzinnym oknem na cofnięcie) wchodzi w zakres MVP v1.0?** Jeśli tak — czy dopisujemy brakujące FR i US? | Zakres Sprintu 3 (`users.deleted_at` + `Cron`). |
+| **Q-09** | Sequence (`US-5 AC2`), NFR Obciążenie | **Jaki mechanizm synchronizacji pokoju grupowego wybieramy w aplikacji webowej?** | **Rozstrzygnięte:** cykliczny **polling JS (`fetch` co 1–2 s)** do PHP — prosty w utrzymaniu i w zupełności wystarczający dla ≤ 10 użytkowników i czasu odpowiedzi ≤ 3 s. |
 
 ---
 

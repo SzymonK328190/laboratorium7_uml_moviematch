@@ -51,10 +51,10 @@ autonumber "<b>[00]</b> "
 
 actor "Administrator\ngrupy" as Admin
 actor "Uczestnik\n(Użytkownik)" as User
-boundary "Aplikacja Web\n(Klient HTTPS)" as UI
-control "Serwis Grup\n(Grupa)" as GroupSvc
-control "Silnik ML\n(PropozycjaFilmu)" as MLSvc
-database "Baza Danych\n(Uzytkownik, Film,\nOcena, Grupa)" as DB
+boundary "Aplikacja Web\n(HTML/JS, HTTPS)" as UI
+control "Backend PHP\n(Serwis Grup)" as GroupSvc
+control "Mikroserwis ML\n(Python FastAPI)" as MLSvc
+database "Baza MariaDB\n(users, movies,\nratings, grupy)" as DB
 
 == Faza 1: Utworzenie grupy i udostępnienie linku zaproszenia [FR-07, US-4 AC1] ==
 
@@ -77,7 +77,7 @@ Admin ->> User : prześlij link zaproszenia poza aplikacją\n(np. Messenger / SM
 
 User -> UI : otworzLinkZaproszenia(kodZaproszenia) [URL]
 activate UI
-UI -> GroupSvc : dolaczDoGrupy(kodZaproszenia, tokenSesji) [HTTPS]
+UI -> GroupSvc : dolaczDoGrupy(kodZaproszenia, sesja PHP) [HTTPS]
 activate GroupSvc
 
 alt Użytkownik zalogowany [FR-03]
@@ -87,9 +87,9 @@ alt Użytkownik zalogowany [FR-03]
   deactivate DB
   GroupSvc --> UI : dołączono + lista uczestników
   UI --> User : wyświetl pokój grupy [FR-06]
-  UI --> Admin : odśwież listę uczestników w pokoju
+  UI --> Admin : odśwież listę uczestników w pokoju (polling JS)
 else Gość — niezalogowany [alt: FR-02, FR-03]
-  GroupSvc --> UI : 401 Wymagane uwierzytelnienie
+  GroupSvc --> UI : 401 / przekierowanie do login.php
   UI --> User : przekieruj do ekranu logowania / rejestracji
 end
 deactivate GroupSvc
@@ -124,7 +124,7 @@ loop Dopóki propozycja nie zostanie zaakceptowana (można powtarzać dla kolejn
   DB --> GroupSvc : OK
   deactivate DB
 
-  GroupSvc -> MLSvc : wyznaczRekomendacjeGrupowa(grupaId,\nodrzuconeIds)
+  GroupSvc -> MLSvc : POST 127.0.0.1:8001 — wyznaczRekomendacjeGrupowa\n(grupaId, odrzuconeIds) [timeout 2s]
   activate MLSvc
   MLSvc -> DB : pobierzWektoryIOcenyAktywnychCzlonkow(grupaId)
   activate DB
@@ -135,8 +135,8 @@ loop Dopóki propozycja nie zostanie zaakceptowana (można powtarzać dla kolejn
   DB --> MLSvc : wektory preferencji, oceny, wektory filmów
   deactivate DB
 
-  alt Idealne dopasowanie ML [US-5 AC1]
-    MLSvc -> MLSvc : obliczWspolnyWektor()\ni dopasujFilm()
+  alt Dopasowanie wektorowe ML (Average + Least Misery) [US-5 AC1]
+    MLSvc -> MLSvc : obliczDopasowanieGrupowe()\ni dopasujFilm()
     MLSvc -> DB : zapiszPropozycje(GRUPOWY, WEKTOR_ML)
     activate DB
     DB --> MLSvc : propozycjaId, film
@@ -152,12 +152,12 @@ loop Dopóki propozycja nie zostanie zaakceptowana (można powtarzać dla kolejn
   end
   deactivate MLSvc
 
-  GroupSvc -> DB : zmienStatusGrupy(PROPOZYCJA_WYGENEROWANA)
+  GroupSvc -> DB : zmienStatusGrupy(PROPOZYCJA_WYGENEROWANA)\ni zapisz current_movie_id
   activate DB
   DB --> GroupSvc : OK
   deactivate DB
 
-  GroupSvc --> UI : rozgłoś propozycję do pokoju (≤ 3 s)\n[US-5 AC2, NFR Obciążenie]
+  GroupSvc --> UI : zsynchronizuj propozycję przez polling JS (≤ 3 s)\n[US-5 AC2, NFR Obciążenie]
   deactivate GroupSvc
   UI --> Admin : wyświetl ten sam wylosowany tytuł filmu
   UI --> User : wyświetl ten sam wylosowany tytuł filmu
@@ -185,7 +185,7 @@ note over GroupSvc, DB
   pozostają otwarte po wyborze filmu — można ponowić Fazę 4.
 end note
 
-opt Typ == TYMCZASOWA: upływ 6 godzin nieaktywności [FR-07, US-4 AC5]
+opt Typ == TYMCZASOWA: upływ 6 godzin nieaktywności (zadanie Cron) [FR-07, US-4 AC5]
   GroupSvc -> GroupSvc : wykryjBrakAktywnosci(grupaId, 6h)
   activate GroupSvc
   GroupSvc -> DB : zmienStatusGrupy(ZAKONCZONA) / usuń grupę tymczasową

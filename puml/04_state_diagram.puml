@@ -67,7 +67,7 @@ state "Aktywna Grupa" as AktywnaGrupa #F8FAFC {
 
   Utworzona --> Oczekujaca : udostepnijLinkZaproszenia()\n(np. Messenger / SMS)\n[FR-06, US-4 AC1]
 
-  Oczekujaca --> Dobieranie : uruchomDobieranieGrupowe()\n[aktywni uczestnicy ≥ 2*]\n[FR-10]
+  Oczekujaca --> Dobieranie : uruchomDobieranieGrupowe()\n[aktywni uczestnicy ≥ 2]\n[FR-10]
 
   Dobieranie --> Propozycja : wyznaczonoPropozycje()\n[ML lub średnia ocen]\n[US-5 AC1–AC3]
 
@@ -92,10 +92,5 @@ AktywnaGrupa --> Usunieta : usunGrupe()\n[wywołane przez Administratora]\n[FR-1
 
 Zakonczona --> [*]
 Usunieta --> [*]
-
-note bottom of Usunieta
-  <b>Uwaga (*):</b> Warunek [aktywni uczestnicy ≥ 2] stanowi kwestię
-  do potwierdzenia z Product Ownerem (pkt 5 raportu).
-end note
 
 @enduml
